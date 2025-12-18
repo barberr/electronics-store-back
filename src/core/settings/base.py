@@ -7,6 +7,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-...')
 
 DEBUG = True
 
+AUTH_USER_MODEL = 'authentication.CustomUser'
+
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [

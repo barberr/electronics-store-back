@@ -1,4 +1,7 @@
 # src/core/settings/prod.py
+
+import os
+from pathlib import Path
 from .base import *
 
 DEBUG = False
@@ -15,3 +18,14 @@ SECRET_KEY = os.environ['SECRET_KEY']
 REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = [
     'rest_framework.renderers.JSONRenderer',
 ]
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'electronics_db'),
+        'USER': os.getenv('DB_USER', 'electronics_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'очень_надёжный_пароль'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+    }
+}

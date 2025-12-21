@@ -33,7 +33,7 @@ jobs:
           script: |
             cd /var/www/electronics-store-back
             git pull origin main
-            # при необходимости: обновление зависимостей, миграции, сбор статики
+            # при необходимости: обновление зависимостей, миграции
             source venv/bin/activate
             pip install -r requirements.txt
             python manage.py migrate --noinput

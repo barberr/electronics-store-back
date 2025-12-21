@@ -1,0 +1,41 @@
+name: Deploy to server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: actions-deploy
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy and restart service
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          script: |
+            cd /var/www/electronics-store-back
+            git pull origin main
+            # при необходимости: обновление зависимостей, миграции, сбор статики
+            source venv/bin/activate
+            pip install -r requirements.txt
+            python manage.py migrate --noinput
+            # перезапуск systemd-сервиса
+            sudo systemctl daemon-reload
+            sudo systemctl restart ${{ secrets.SERVICE_NAME }}

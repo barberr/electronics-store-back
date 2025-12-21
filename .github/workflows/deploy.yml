@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: actions-deploy
-    
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }} 
           script: |
             cd /var/www/electronics-store-back
             git pull origin main

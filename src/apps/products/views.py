@@ -42,3 +42,60 @@ class BrandViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Brand.DoesNotExist:
             return Response({'error': 'Brand not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class OverviewViewSet(viewsets.GenericViewSet):
+    """
+    ViewSet для агрегированного представления каталога.
+    Поддерживает только один эндпоинт — list (GET /api/v1/overview/).
+    """
+    
+    # Не требует queryset по умолчанию, т.к. агрегирует данные вручную
+    pagination_class = None  # отключаем пагинацию для overview
+
+    def list(self, request, *args, **kwargs):
+        """
+        GET /api/v1/overview/
+        Возвращает:
+        - brands: все бренды
+        - categories: все категории
+        - catalog: товары, сгруппированные по категориям (сохраняя порядок категорий)
+        """
+        # 1. Получаем все данные с оптимизацией запросов
+        brands = Brand.objects.all()
+        categories = Category.objects.all().order_by('id')  # или order_by('name'), как в Meta
+        # Желательно select_related, чтобы избежать N+1 при сериализации
+        products = Product.objects.select_related('brand', 'category') \
+                                   .filter(is_available=True) \
+                                   .order_by('category_id', '-created_at')
+
+        # 2. Сериализуем бренды и категории
+        brand_data = BrandSerializer(brands, many=True, context={'request': request}).data
+        category_data = CategorySerializer(categories, many=True, context={'request': request}).data
+
+        # 3. Группируем товары по категориям
+        # Создаём маппинг: category_id → список товаров
+        products_by_category = {}
+        for category in categories:
+            products_by_category[category.id] = []
+
+        for product in products:
+            products_by_category[product.category_id].append(
+                ProductSerializer(product, context={'request': request}).data
+            )
+
+        # 4. Формируем упорядоченный каталог
+        catalog = []
+        for cat in categories:
+            catalog.append({
+                'id': cat.id,
+                'name': cat.name,
+                'slug': cat.slug,
+                'products': products_by_category[cat.id]
+            })
+
+        return Response({
+            'brands': brand_data,
+            'categories': category_data,
+            'catalog': catalog,
+        })

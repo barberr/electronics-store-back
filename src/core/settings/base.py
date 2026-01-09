@@ -26,7 +26,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -41,7 +40,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",   # Nuxt по умолчанию
     "http://127.0.0.1:3000",
     "http://10.10.4.12:3000",
+    "http://94.241.171.81",
 ]
+
+CORS_ALLOW_CREDENTIALS = False
 
 ROOT_URLCONF = 'core.urls'
 

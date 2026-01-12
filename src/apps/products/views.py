@@ -7,9 +7,10 @@ from .serializers import CategorySerializer, ProductSerializer, BrandSerializer
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    lookup_field = 'slug'
 
     @action(detail=True, methods=['get'], url_path='products')
-    def products(self, request, pk=None):
+    def products(self, request, slug=None):
         """Возвращает товары категории по её ID"""
         try:
             category = self.get_object()  # получает Category по pk

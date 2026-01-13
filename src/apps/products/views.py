@@ -11,7 +11,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='products')
     def products(self, request, slug=None):
-        """Возвращает товары категории по её ID"""
+        """Возвращает товары категории по её SLUG"""
         try:
             category = self.get_object()  # получает Category по pk
             products = Product.objects.filter(category=category)
@@ -33,9 +33,10 @@ class ProductViewSet(viewsets.ModelViewSet):
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
+    lookup_field = 'slug'
     @action(detail=True, methods=['get'], url_path='products')
-    def products(self, request, pk=None):
-        """Возвращает товары бренда по его ID"""
+    def products(self, request, slug=None):
+        """Возвращает товары бренда по его SLUG"""
         try:
             brand = self.get_object()  # получает Category по pk
             products = Product.objects.filter(brand=brand)

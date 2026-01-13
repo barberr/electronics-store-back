@@ -146,8 +146,24 @@ class Order(models.Model):
     )
     contact_phone = models.CharField("Контактный телефон", max_length=20)
     contact_name = models.CharField("Контактное имя", max_length=255)
-    contact_dob = models.DateField("Дата рождения (контакт)", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Заказ #{self.id} — {self.contact_name}"
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
+    variant = models.ForeignKey('ProductVariant', on_delete=models.PROTECT)  # ← связь с вариантом
+    quantity = models.PositiveIntegerField("Количество", default=1)
+    price_at_time = models.DecimalField(  # Цена на момент заказа
+        "Цена при заказе",
+        max_digits=10,
+        decimal_places=2
+    )
+
+    class Meta:
+        verbose_name = "Позиция заказа"
+        verbose_name_plural = "Позиции заказа"
+
+    def __str__(self):
+        return f"{self.variant} × {self.quantity}"

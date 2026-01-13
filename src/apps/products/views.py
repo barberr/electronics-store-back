@@ -1,50 +1,65 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Category, Product, Brand
-from .serializers import CategorySerializer, ProductSerializer, BrandSerializer
+from django.shortcuts import get_object_or_404
+from .models import Category, Brand, Product, ProductVariant, Attribute, Order
+from .serializers import (
+    CategorySerializer, BrandSerializer, ProductSerializer,
+    ProductVariantSerializer, AttributeSerializer, OrderSerializer
+)
 
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     lookup_field = 'slug'
 
     @action(detail=True, methods=['get'], url_path='products')
     def products(self, request, slug=None):
-        """Возвращает товары категории по её SLUG"""
-        try:
-            category = self.get_object()  # получает Category по pk
-            products = Product.objects.filter(category=category)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data)
-        except Category.DoesNotExist:
-            return Response({'error': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
+        category = self.get_object()
+        products = Product.objects.filter(category=category, is_active=True)
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+        return Response(serializer.data)
 
 
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+class ProductViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Product.objects.filter(is_active=True).select_related('brand', 'category')
     serializer_class = ProductSerializer
     lookup_field = 'slug'
 
-    def get_queryset(self):
-        return Product.objects.filter(is_available=True).select_related('category')
 
-
-class BrandViewSet(viewsets.ModelViewSet):
+class BrandViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     lookup_field = 'slug'
+
     @action(detail=True, methods=['get'], url_path='products')
     def products(self, request, slug=None):
-        """Возвращает товары бренда по его SLUG"""
-        try:
-            brand = self.get_object()  # получает Category по pk
-            products = Product.objects.filter(brand=brand)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data)
-        except Brand.DoesNotExist:
-            return Response({'error': 'Brand not found'}, status=status.HTTP_404_NOT_FOUND)
+        brand = self.get_object()
+        products = Product.objects.filter(brand=brand, is_active=True)
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+        return Response(serializer.data)
 
+class ProductVariantViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ProductVariant.objects.filter(is_active=True).select_related('product')
+    serializer_class = ProductVariantSerializer
+    lookup_field = 'sku'
+
+class AttributeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Attribute.objects.all()
+    serializer_class = AttributeSerializer
+    lookup_field = 'slug'
+
+class OrderViewSet(viewsets.ModelViewSet):
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            return Order.objects.filter(user=self.request.user)
+        return Order.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 class OverviewViewSet(viewsets.GenericViewSet):
     """

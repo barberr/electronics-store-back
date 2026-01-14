@@ -1,0 +1,11 @@
+/* Стили для полей атрибутов в инлайнах */
+.inline-related .field-attr_ {
+    background-color: #f9f9f9;
+    padding: 8px;
+    border-left: 3px solid #79aec8;
+    margin-bottom: 10px;
+}
+
+.inline-related h3 {
+    background-color: #f8f8f8;
+}

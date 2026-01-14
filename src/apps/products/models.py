@@ -2,30 +2,6 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 
-class Category(models.Model):
-    name = models.CharField("Название", max_length=100, unique=True)
-    slug = models.SlugField("Слаг", max_length=100, unique=True)
-    parent = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='children',
-        verbose_name="Родительская категория"
-    )
-    description = models.TextField("Описание", blank=True)
-    image = models.ImageField("Изображение", upload_to="categories/", blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Категория"
-        verbose_name_plural = "Категории"
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
 class Brand(models.Model):
     name = models.CharField("Название", max_length=100, unique=True)
     slug = models.SlugField(unique=True)
@@ -55,6 +31,32 @@ class Attribute(models.Model):
     class Meta:
         verbose_name = "Атрибут"
         verbose_name_plural = "Атрибуты"
+
+    def __str__(self):
+        return self.name
+
+class Category(models.Model):
+    name = models.CharField("Название", max_length=100, unique=True)
+    slug = models.SlugField("Слаг", max_length=100, unique=True)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        verbose_name="Родительская категория"
+    )
+    description = models.TextField("Описание", blank=True)
+    image = models.ImageField("Изображение", upload_to="categories/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    attributes = models.ManyToManyField(Attribute, blank=True, related_name='categories')
+
+    class Meta:
+        verbose_name = "Категория"
+        verbose_name_plural = "Категории"
+        ordering = ['name']
 
     def __str__(self):
         return self.name

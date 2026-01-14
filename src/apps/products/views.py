@@ -83,7 +83,7 @@ class OverviewViewSet(viewsets.GenericViewSet):
         categories = Category.objects.all().order_by('id')  # или order_by('name'), как в Meta
         # Желательно select_related, чтобы избежать N+1 при сериализации
         products = Product.objects.select_related('brand', 'category') \
-                                   .filter(is_available=True) \
+                                   .filter(is_active=True) \
                                    .order_by('category_id', '-created_at')
 
         # 2. Сериализуем бренды и категории

@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.utils.translation import gettext_lazy as _
 
 class Brand(models.Model):
     name = models.CharField("Название", max_length=100, unique=True)
@@ -169,3 +170,129 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.variant} × {self.quantity}"
+
+class HeroBlock(models.Model):
+    """Модель для хранения данных о героических блоках (главные продукты)"""
+    
+    STATUS_CHOICES = [
+        ('draft', _('Черновик')),
+        ('published', _('Опубликовано')),
+        ('archived', _('Архивировано')),
+    ]
+    
+    # Основная информация
+    title = models.CharField(
+        max_length=200,
+        verbose_name=_('Заголовок'),
+        help_text=_('Например: iPhone 17 Pro Max')
+    )
+    
+    subtitle = models.CharField(
+        max_length=300,
+        verbose_name=_('Подзаголовок'),
+        blank=True,
+        help_text=_('Например: Премиальная техника. Под заказ. С гарантией.')
+    )
+    
+    description = models.TextField(
+        verbose_name=_('Описание'),
+        blank=True,
+        help_text=_('Дополнительное описание продукта')
+    )
+    
+    # Статус и публикация
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft',
+        verbose_name=_('Статус')
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_('Активен')
+    )
+    
+    order = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_('Порядок сортировки'),
+        help_text=_('Чем меньше число, тем выше в списке')
+    )
+    
+    # Дата и время
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_('Дата публикации')
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_('Дата создания')
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_('Дата обновления')
+    )
+    
+    # Связь с продуктом (опционально)
+    product = models.ForeignKey(
+        'Product',  # Замените на вашу модель продукта
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hero_blocks',
+        verbose_name=_('Продукт'),
+        help_text=_('Связанный продукт из каталога')
+    )
+    
+    # Изображение
+    image = models.ImageField(
+        upload_to='hero_blocks/',
+        null=True,
+        blank=True,
+        verbose_name=_('Изображение')
+    )
+    
+    # Дополнительные поля для настройки
+    background_color = models.CharField(
+        max_length=50,
+        default='from-gray-900 via-gray-800 to-gray-900',
+        verbose_name=_('Фоновый цвет'),
+        help_text=_('Tailwind CSS классы для градиента')
+    )
+    
+    text_color = models.CharField(
+        max_length=50,
+        default='text-white',
+        verbose_name=_('Цвет текста'),
+        help_text=_('Tailwind CSS классы для текста')
+    )
+    
+    button_text = models.CharField(
+        max_length=100,
+        default='Заказать сейчас',
+        verbose_name=_('Текст кнопки')
+    )
+    
+    button_link = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name=_('Ссылка кнопки'),
+        help_text=_('URL или путь для кнопки')
+    )
+    
+    class Meta:
+        ordering = ['order', '-published_at']
+        verbose_name = _('Герой-блок')
+        verbose_name_plural = _('Герой-блоки')
+    
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        if self.status == 'published' and not self.published_at:
+            from django.utils import timezone
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)

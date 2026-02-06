@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order, OrderItem
+from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order, OrderItem, HeroBlock
 
 # =============== КАТЕГОРИИ ===============
 @admin.register(Category)
@@ -108,3 +108,26 @@ class OrderAdmin(admin.ModelAdmin):
     #     return False
     # def has_change_permission(self, request, obj=None):
     #     return False
+
+@admin.register(HeroBlock)
+class HeroBlockAdmin(admin.ModelAdmin):
+    list_display = ['title', 'status', 'is_active', 'order', 'published_at']
+    list_filter = ['status', 'is_active', 'published_at']
+    search_fields = ['title', 'subtitle', 'description']
+    list_editable = ['order', 'is_active']
+    date_hierarchy = 'published_at'
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('title', 'subtitle', 'description', 'image')
+        }),
+        ('Настройки отображения', {
+            'fields': ('background_color', 'text_color', 'button_text', 'button_link')
+        }),
+        ('Статус и публикация', {
+            'fields': ('status', 'is_active', 'order', 'published_at')
+        }),
+        ('Связи', {
+            'fields': ('product',)
+        }),
+    )

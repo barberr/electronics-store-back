@@ -1,11 +1,11 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Category, Brand, Product, ProductVariant, Attribute, Order
+from .models import Category, Brand, Product, ProductVariant, Attribute, Order, HeroBlock
 from .serializers import (
     CategorySerializer, BrandSerializer, ProductSerializer,
-    ProductVariantSerializer, AttributeSerializer, OrderSerializer
+    ProductVariantSerializer, AttributeSerializer, OrderSerializer, HeroBlockSerializer
 )
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -116,3 +116,23 @@ class OverviewViewSet(viewsets.GenericViewSet):
             'categories': category_data,
             'catalog': catalog,
         })
+
+class HeroBlockViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet для управления герой-блоками.
+    """
+    
+    serializer_class = HeroBlockSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        """
+        Возвращает только опубликованные и активные блоки для неавторизованных пользователей.
+        Для авторизованных — все блоки.
+        """
+        if self.request.user.is_authenticated:
+            return HeroBlock.objects.all()
+        return HeroBlock.objects.filter(
+            status='published',
+            is_active=True
+        )

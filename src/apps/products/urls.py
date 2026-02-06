@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CategoryViewSet, BrandViewSet, ProductViewSet,
     ProductVariantViewSet, AttributeViewSet,
-    OrderViewSet, OverviewViewSet
+    OrderViewSet, OverviewViewSet, HeroBlockViewSet
 )
 
 router = DefaultRouter()
@@ -15,6 +15,7 @@ router.register(r'variants', ProductVariantViewSet, basename='variant')
 router.register(r'attributes', AttributeViewSet, basename='attribute')
 router.register(r'orders', OrderViewSet, basename='order')
 router.register(r'overview', OverviewViewSet, basename='overview')
+router.register(r'hero-blocks', HeroBlockViewSet, basename='hero-block')
 
 urlpatterns = [
     path('', include(router.urls)),

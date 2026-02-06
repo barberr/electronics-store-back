@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order
+from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order, HeroBlock
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -56,3 +56,41 @@ class OrderSerializer(serializers.ModelSerializer):
             'contact_dob', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user'] 
+
+class HeroBlockSerializer(serializers.ModelSerializer):
+    """Сериализатор для герой-блоков"""
+    
+    # Опционально: вложенный сериализатор для связанного продукта
+    product_name = serializers.CharField(
+        source='product.name',
+        read_only=True
+    )
+    
+    product_price = serializers.CharField(
+        source='product.price',
+        read_only=True
+    )
+    
+    class Meta:
+        model = HeroBlock
+        fields = [
+            'id',
+            'title',
+            'subtitle',
+            'description',
+            'status',
+            'is_active',
+            'order',
+            'published_at',
+            'created_at',
+            'updated_at',
+            'product',
+            'product_name',
+            'product_price',
+            'image',
+            'background_color',
+            'text_color',
+            'button_text',
+            'button_link',
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'published_at']

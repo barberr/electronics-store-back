@@ -247,12 +247,19 @@ class HeroBlock(models.Model):
         help_text=_('Связанный продукт из каталога')
     )
     
-    # Изображение
+    # Изображения
     image = models.ImageField(
         upload_to='hero_blocks/',
         null=True,
         blank=True,
         verbose_name=_('Изображение')
+    )
+
+    background_image = models.ImageField(
+        upload_to='hero_blocks/',
+        null=True,
+        blank=True,
+        verbose_name=_('Фоновое изображение')
     )
     
     # Дополнительные поля для настройки

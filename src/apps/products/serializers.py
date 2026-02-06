@@ -88,6 +88,7 @@ class HeroBlockSerializer(serializers.ModelSerializer):
             'product_name',
             'product_price',
             'image',
+            'background_image',
             'background_color',
             'text_color',
             'button_text',

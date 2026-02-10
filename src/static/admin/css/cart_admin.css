@@ -1,0 +1,71 @@
+/* Кастомные стили для админки корзины */
+
+/* Улучшенное отображение таблицы */
+.module table {
+    font-size: 14px;
+}
+
+/* Цветовые акценты для статусов */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.status-active {
+    background-color: #10b981;
+}
+
+.status-completed {
+    background-color: #3b82f6;
+}
+
+.status-abandoned {
+    background-color: #ef4444;
+}
+
+/* Стили для инлайн-форм */
+.inline-group {
+    margin-bottom: 20px;
+}
+
+.inline-related {
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #f9fafb;
+}
+
+/* Улучшенное отображение полей только для чтения */
+.readonly {
+    background-color: #f3f4f6;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+/* Стили для деталей корзины */
+.cart-details-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.cart-details-table th {
+    background-color: #f3f4f6;
+    padding: 8px;
+    text-align: left;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.cart-details-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.cart-details-table tr:hover {
+    background-color: #f9fafb;
+}

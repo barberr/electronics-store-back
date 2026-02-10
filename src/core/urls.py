@@ -9,6 +9,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.authentication.urls')),
     path('api/v1/', include('apps.products.urls')),
+    path('api/v1/', include('apps.cart.urls')),
 ]
 
 # Только в DEBUG — раздача media через Django

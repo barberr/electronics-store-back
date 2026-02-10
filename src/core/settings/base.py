@@ -23,7 +23,7 @@ INSTALLED_APPS = [
     # 'rest_framework_simplejwt.token_blacklist', 
     'apps.authentication',
     'apps.products', 
-    
+    'apps.cart',
 ]
 
 MIDDLEWARE = [
@@ -140,3 +140,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
+# Настройки сессий для корзины
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 1209600  # 2 недели
+SESSION_SAVE_EVERY_REQUEST = True

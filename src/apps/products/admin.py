@@ -4,11 +4,11 @@ from .models import Category, Brand, Product, ProductImage, ProductVariant, Attr
 # =============== КАТЕГОРИИ ===============
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ['name', 'slug', 'parent', 'created_at']
+    list_display = ['name', 'slug', 'is_header_menu', 'parent', 'created_at']
     list_filter = ['parent', 'created_at']
     search_fields = ['name', 'slug']
     prepopulated_fields = {'slug': ('name',)}
-    fields = ['name', 'slug', 'parent', 'description', 'image']
+    fields = ['name', 'slug', 'parent', 'description', 'is_header_menu', 'order', 'image']
 
 
 # =============== БРЕНДЫ ===============
@@ -81,7 +81,7 @@ class ProductAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Настройки', {
-            'fields': ('is_active', 'is_preorder', 'warranty_months')
+            'fields': ('is_active', 'is_preorder', 'is_popular', 'warranty_months')
         }),
     )
     

@@ -13,6 +13,16 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CategorySerializer
     lookup_field = 'slug'
 
+    @action(detail=False, methods=['get'], url_path='header-menu')
+    def header_menu_categories(self, request):
+        """
+        Возвращает только категории, отмеченные для отображения в верхнем меню (is_header_menu=True)
+        """
+        categories = Category.objects.filter(is_header_menu=True).order_by('order')
+        serializer = self.get_serializer(categories, many=True)
+        return Response(serializer.data)
+
+
     @action(detail=True, methods=['get'], url_path='products')
     def products(self, request, slug=None):
         category = self.get_object()
@@ -25,6 +35,15 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.filter(is_active=True).select_related('brand', 'category')
     serializer_class = ProductSerializer
     lookup_field = 'slug'
+
+    @action(detail=False, methods=['get'], url_path='popular')
+    def popular_products(self, request):
+        """
+        Возвращает только товары, отмеченные для отображения в популярном (is_popular=True)
+        """
+        products = self.get_queryset().filter(is_popular=True)
+        serializer = self.get_serializer(products, many=True)
+        return Response(serializer.data)
 
 
 class BrandViewSet(viewsets.ReadOnlyModelViewSet):

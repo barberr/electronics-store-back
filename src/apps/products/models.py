@@ -47,6 +47,8 @@ class Category(models.Model):
         related_name='children',
         verbose_name="Родительская категория"
     )
+    is_header_menu = models.BooleanField("Отображать в верхнем меню", default=False)
+    order = models.PositiveIntegerField("Порядок отображения в меню", default=0)
     description = models.TextField("Описание", blank=True)
     image = models.ImageField("Изображение", upload_to="categories/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -76,6 +78,7 @@ class Product(models.Model):
     
     is_active = models.BooleanField("Активен", default=True)
     is_preorder = models.BooleanField("Предзаказ", default=False)
+    is_popular = models.BooleanField("Отображать в популярных", default=False)
     delivery_text = models.TextField("Текст доставки", blank=True)
     warranty_months = models.PositiveSmallIntegerField("Гарантия (мес)", default=12)
     

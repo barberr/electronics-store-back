@@ -61,6 +61,11 @@ class HeroBlockSerializer(serializers.ModelSerializer):
     """Сериализатор для герой-блоков"""
     
     # Опционально: вложенный сериализатор для связанного продукта
+    product_slug = serializers.CharField(
+        source='product.slug',
+        read_only=True
+    )
+
     product_name = serializers.CharField(
         source='product.name',
         read_only=True
@@ -86,7 +91,9 @@ class HeroBlockSerializer(serializers.ModelSerializer):
             'updated_at',
             'product',
             'product_name',
+            'product_slug',
             'product_price',
+            'video_mp4',
             'image',
             'background_image',
             'background_color',

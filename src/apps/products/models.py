@@ -1,7 +1,15 @@
+import os
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+
+def validate_video_file(value):
+    """Проверяет, что загружаемый файл — это MP4"""
+    ext = os.path.splitext(value.name)[1].lower()
+    if ext not in ['.mp4']:
+        raise ValidationError(_('Поддерживается только формат .mp4'))
 
 class Brand(models.Model):
     name = models.CharField("Название", max_length=100, unique=True)
@@ -248,6 +256,15 @@ class HeroBlock(models.Model):
         related_name='hero_blocks',
         verbose_name=_('Продукт'),
         help_text=_('Связанный продукт из каталога')
+    )
+
+    video_mp4 = models.FileField(
+        upload_to='hero_blocks/videos/',
+        validators=[validate_video_file],
+        null=True,
+        blank=True,
+        verbose_name=_('Видео (MP4)'),
+        help_text=_('Загрузите видео в формате .mp4 для фонового воспроизведения')
     )
     
     # Изображения

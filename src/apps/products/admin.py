@@ -119,7 +119,7 @@ class HeroBlockAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Основная информация', {
-            'fields': ('title', 'subtitle', 'description', 'image', 'background_image')
+            'fields': ('title', 'subtitle', 'description', 'video_mp4', 'image', 'background_image')
         }),
         ('Настройки отображения', {
             'fields': ('background_color', 'text_color', 'button_text', 'button_link')

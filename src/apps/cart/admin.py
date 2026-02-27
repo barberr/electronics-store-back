@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from django.utils import timezone
+from django.utils.safestring import mark_safe
 from .models import Cart, CartItem
 
 
@@ -16,7 +16,8 @@ class CartItemInline(admin.TabularInline):
     
     def get_total_price(self, obj):
         """Отобразить общую стоимость элемента"""
-        return f"{obj.get_total_price():,.2f} ₽"
+        total = obj.get_total_price()
+        return f"{total:,.2f} ₽"
     get_total_price.short_description = 'Стоимость'
     get_total_price.admin_order_field = 'quantity'
     
@@ -89,7 +90,7 @@ class CartAdmin(admin.ModelAdmin):
             )
         return format_html(
             '<span style="color: gray;">📱 Сессия: {}</span>',
-            obj.session_key[:15] + '...' if obj.session_key else '—'
+            (obj.session_key[:15] + '...') if obj.session_key else '—'
         )
     get_user_or_session.short_description = 'Пользователь / Сессия'
     get_user_or_session.admin_order_field = 'user'
@@ -98,7 +99,7 @@ class CartAdmin(admin.ModelAdmin):
         """Отобразить общее количество товаров"""
         count = obj.get_total_items()
         if count == 0:
-            return format_html('<span style="color: red;">Пусто</span>')
+            return mark_safe('<span style="color: red;">Пусто</span>')
         return format_html(
             '<span style="color: blue; font-weight: bold;">{}</span>',
             count
@@ -108,9 +109,10 @@ class CartAdmin(admin.ModelAdmin):
     def get_total_price(self, obj):
         """Отобразить общую стоимость"""
         total = obj.get_total_price()
+        formatted_total = f"{total:.2f}"
         return format_html(
-            '<span style="color: #ef4444; font-weight: bold; font-size: 1.1em;">{:.2f} ₽</span>',
-            total
+            '<span style="color: #ef4444; font-weight: bold; font-size: 1.1em;">{} ₽</span>',
+            formatted_total
         )
     get_total_price.short_description = 'Сумма'
     
@@ -125,10 +127,13 @@ class CartAdmin(admin.ModelAdmin):
         html += '<tr style="background-color: #f3f4f6;"><th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb;">Товар</th><th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb;">Кол-во</th><th style="padding: 8px; text-align: right; border-bottom: 2px solid #e5e7eb;">Цена</th><th style="padding: 8px; text-align: right; border-bottom: 2px solid #e5e7eb;">Итого</th></tr>'
         
         for item in items:
-            html += f'<tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{item.variant}</td>'
+            total_price = item.get_total_price()
+            html += f'<tr>'
+            html += f'<td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{item.variant}</td>'
             html += f'<td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{item.quantity}</td>'
             html += f'<td style="padding: 8px; text-align: right; border-bottom: 1px solid #e5e7eb;">{item.variant.price:.2f} ₽</td>'
-            html += f'<td style="padding: 8px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: bold;">{item.get_total_price():.2f} ₽</td></tr>'
+            html += f'<td style="padding: 8px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: bold;">{total_price:.2f} ₽</td>'
+            html += f'</tr>'
         
         html += '</table></div>'
         return format_html(html)
@@ -166,7 +171,7 @@ class CartAdmin(admin.ModelAdmin):
         """Очистить выбранные корзины"""
         count = 0
         for cart in queryset:
-            deleted_count, _ = cart.items.all().delete()
+            cart.items.all().delete()
             count += 1
         self.message_user(request, f'Очищено {count} корзин(а)')
     clear_carts.short_description = 'Очистить корзины'
@@ -261,11 +266,9 @@ class CartItemAdmin(admin.ModelAdmin):
     get_variant_price.admin_order_field = 'variant__price'
     
     def get_total_price(self, obj):
-        """Отобразить общую стоимость"""
-        return format_html(
-            '<strong>{:.2f} ₽</strong>',
-            obj.get_total_price()
-        )
+        total = obj.get_total_price()
+        formatted = f"{total:.2f}"
+        return format_html('<strong>{} ₽</strong>', formatted)
     get_total_price.short_description = 'Итого'
     
     def get_variant_stock_status(self, obj):
@@ -286,11 +289,12 @@ class CartItemAdmin(admin.ModelAdmin):
     def get_variant_details(self, obj):
         """Отобразить детали варианта"""
         variant = obj.variant
+        old_price_str = f"{variant.old_price:.2f} ₽" if variant.old_price else "—"
         html = f"""
         <div style="padding: 10px; background-color: #f9fafb; border-radius: 4px;">
             <p><strong>Артикул:</strong> {variant.sku or '—'}</p>
             <p><strong>Цена:</strong> {variant.price:.2f} ₽</p>
-            <p><strong>Старая цена:</strong> {variant.old_price:.2f} ₽</p> if variant.old_price else '<p><strong>Старая цена:</strong> —</p>'
+            <p><strong>Старая цена:</strong> {old_price_str}</p>
             <p><strong>Остаток:</strong> {variant.stock} шт.</p>
             <p><strong>Активен:</strong> {'✓ Да' if variant.is_active else '✗ Нет'}</p>
             <p><strong>Атрибуты:</strong></p>

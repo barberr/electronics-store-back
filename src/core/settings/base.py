@@ -46,7 +46,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://izistore.info",
 ]
 
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'core.urls'
 

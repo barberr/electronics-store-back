@@ -6,12 +6,27 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.core.mail import send_mail
 from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 
-import traceback
-
 User = get_user_model()
+
+
+def send_verification_pin_email(user):
+    subject = 'Email verification PIN'
+    message = (
+        f'Your verification PIN is: {user.email_verification_pin}\n'
+        f'The PIN is valid for {settings.EMAIL_VERIFICATION_PIN_TTL_MINUTES} minutes.'
+    )
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -29,6 +44,31 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        user.set_email_verification_pin(settings.EMAIL_VERIFICATION_PIN_TTL_MINUTES)
+        user.save(update_fields=['email_verification_pin', 'email_verification_pin_expires_at'])
+
+        try:
+            send_verification_pin_email(user)
+        except Exception:
+            user.delete()
+            return Response(
+                {'error': 'Unable to send verification PIN email'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response(
+            {
+                'message': 'User registered. Verification PIN has been sent to email.',
+                'email': user.email,
+                'verification_required': True,
+            },
+            status=status.HTTP_201_CREATED
+        )
 
 class LoginView(APIView):
     permission_classes = (permissions.AllowAny,)
@@ -49,6 +89,105 @@ class LoginView(APIView):
                 'access': str(refresh.access_token),
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VerifyEmailPinView(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
+        serializer = VerifyEmailPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        pin = serializer.validated_data['pin']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User with this email was not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if user.is_email_verified:
+            return Response(
+                {'message': 'Email is already verified'},
+                status=status.HTTP_200_OK
+            )
+
+        if not user.is_email_verification_pin_valid(pin):
+            return Response(
+                {'error': 'Invalid or expired PIN'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.is_email_verified = True
+        user.is_active = True
+        user.clear_email_verification_pin()
+        user.save(update_fields=[
+            'is_email_verified',
+            'is_active',
+            'email_verification_pin',
+            'email_verification_pin_expires_at',
+        ])
+
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {
+                'message': 'Email verified successfully',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                },
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+class ResendEmailPinView(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
+        serializer = ResendEmailPinSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User with this email was not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if user.is_email_verified:
+            return Response(
+                {'message': 'Email is already verified'},
+                status=status.HTTP_200_OK
+            )
+
+        user.set_email_verification_pin(settings.EMAIL_VERIFICATION_PIN_TTL_MINUTES)
+        user.save(update_fields=['email_verification_pin', 'email_verification_pin_expires_at'])
+
+        try:
+            send_verification_pin_email(user)
+        except Exception:
+            return Response(
+                {'error': 'Unable to send verification PIN email'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response(
+            {
+                'message': 'Verification PIN has been resent',
+                'email': user.email,
+            },
+            status=status.HTTP_200_OK
+        )
 
 class LogoutView(APIView):
     permission_classes = (IsAuthenticated,)

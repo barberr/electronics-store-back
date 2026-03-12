@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from .views import (
     CustomTokenObtainPairView,
     RegisterView,
+    VerifyEmailPinView,
+    ResendEmailPinView,
     LogoutView,
     UserProfileView,
     ChangePasswordView,
@@ -28,6 +30,8 @@ urlpatterns = [
     #path('login/', LoginView.as_view(), name='login'),
     path('login/', api_no_csrf(LoginView), name='login'),
     path('register/', api_no_csrf(RegisterView), name='register'),
+    path('verify-email-pin/', api_no_csrf(VerifyEmailPinView), name='verify_email_pin'),
+    path('resend-email-pin/', api_no_csrf(ResendEmailPinView), name='resend_email_pin'),
     path('logout/', api_no_csrf(LogoutView), name='logout'),
     
     # User endpoints

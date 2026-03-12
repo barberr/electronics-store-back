@@ -1,6 +1,5 @@
 # src/apps/authentication/serializers.py
 from rest_framework import serializers
-from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.validators import UniqueValidator
@@ -38,20 +37,46 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             email=validated_data['email'],
             first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            last_name=validated_data.get('last_name', ''),
+            is_active=False,
+            is_email_verified=False,
         )
         user.set_password(validated_data['password'])
         user.save()
         return user
+
+class VerifyEmailPinSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    pin = serializers.RegexField(r'^\d{6}$')
+
+
+class ResendEmailPinSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField()
 
     def validate(self, data):
-        user = authenticate(**data)
+        username = data.get('username')
+        password = data.get('password')
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Incorrect Credentials")
+
+        if not user.check_password(password):
+            raise serializers.ValidationError("Incorrect Credentials")
+
+        if not user.is_email_verified:
+            raise serializers.ValidationError("Email is not verified")
+
+        user = authenticate(username=username, password=password)
         if user and user.is_active:
             return user
+
         raise serializers.ValidationError("Incorrect Credentials")
 
 class UserSerializer(serializers.ModelSerializer):

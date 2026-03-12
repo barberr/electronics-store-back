@@ -58,12 +58,7 @@ class CartViewSet(viewsets.ViewSet):
             try:
                 variant = ProductVariant.objects.get(id=variant_id)
                 
-                # Проверка доступности товара
-                if quantity > variant.stock:
-                    return Response(
-                        {'error': f'Недостаточно товара на складе. Доступно: {variant.stock}'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                # ✅ УДАЛЕНА ПРОВЕРКА СКЛАДА (товары заказываются по запросу)
                 
                 # Добавление или обновление элемента корзины
                 cart_item, created = CartItem.objects.get_or_create(
@@ -74,11 +69,7 @@ class CartViewSet(viewsets.ViewSet):
                 
                 if not created:
                     cart_item.quantity += quantity
-                    if cart_item.quantity > variant.stock:
-                        return Response(
-                            {'error': f'Недостаточно товара на складе. Доступно: {variant.stock}'},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                    # ✅ УДАЛЕНА ПРОВЕРКА СКЛАДА ПОСЛЕ ОБНОВЛЕНИЯ
                     cart_item.save()
                 
                 cart_serializer = CartSerializer(cart)
@@ -104,12 +95,7 @@ class CartViewSet(viewsets.ViewSet):
                 cart_item = CartItem.objects.get(id=item_id, cart=cart)
                 quantity = serializer.validated_data['quantity']
                 
-                # Проверка доступности товара
-                if quantity > cart_item.variant.stock:
-                    return Response(
-                        {'error': f'Недостаточно товара на складе. Доступно: {cart_item.variant.stock}'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                # ✅ УДАЛЕНА ПРОВЕРКА СКЛАДА (товары заказываются по запросу)
                 
                 cart_item.quantity = quantity
                 cart_item.save()

@@ -29,7 +29,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
+            raise serializers.ValidationError({"password": "Поля для ввода пароля не совпадали."})
         return attrs
 
     def create(self, validated_data):
@@ -65,19 +65,19 @@ class LoginSerializer(serializers.Serializer):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Incorrect Credentials")
+            raise serializers.ValidationError("Неверные учетные данные")
 
         if not user.check_password(password):
-            raise serializers.ValidationError("Incorrect Credentials")
+            raise serializers.ValidationError("Неверные учетные данные")
 
         if not user.is_email_verified:
-            raise serializers.ValidationError("Email is not verified")
+            raise serializers.ValidationError("Email не подтвержден")
 
         user = authenticate(username=username, password=password)
         if user and user.is_active:
             return user
 
-        raise serializers.ValidationError("Incorrect Credentials")
+        raise serializers.ValidationError("Неверные учетные данные")
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

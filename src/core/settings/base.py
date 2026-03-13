@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent  # корень проекта
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # каталог src
+PROJECT_ROOT = BASE_DIR.parent  # корень проекта
 
 try:
     from dotenv import load_dotenv
@@ -9,7 +10,7 @@ except ImportError:
     load_dotenv = None
 
 if load_dotenv is not None:
-    load_dotenv(BASE_DIR / '.env')
+    load_dotenv(PROJECT_ROOT / '.env')
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-...')
 

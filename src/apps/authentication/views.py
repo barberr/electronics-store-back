@@ -117,7 +117,7 @@ class VerifyEmailPinView(APIView):
 
         if not user.is_email_verification_pin_valid(pin):
             return Response(
-                {'error': 'Invalid or expired PIN'},
+                {'error': 'Неверный или просроченный PIN'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

@@ -21,7 +21,12 @@ class CartItemSerializer(serializers.ModelSerializer):
         read_only=True
     )
     variant_image = serializers.SerializerMethodField()
-    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_price = serializers.DecimalField(
+        source='get_total_price',
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
+    )
     
     class Meta:
         model = CartItem
@@ -58,8 +63,9 @@ class CartSerializer(serializers.ModelSerializer):
     """Сериализатор для корзины"""
     
     items = CartItemSerializer(many=True, read_only=True)
-    total_items = serializers.IntegerField(read_only=True)
+    total_items = serializers.IntegerField(source='get_total_items', read_only=True)
     total_price = serializers.DecimalField(
+        source='get_total_price',
         max_digits=10,
         decimal_places=2,
         read_only=True

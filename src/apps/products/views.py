@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -32,9 +33,17 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Product.objects.filter(is_active=True).select_related('brand', 'category')
     serializer_class = ProductSerializer
     lookup_field = 'slug'
+
+    def get_queryset(self):
+        return Product.objects.filter(is_active=True).select_related(
+            'brand',
+            'category',
+        ).prefetch_related(
+            'images',
+            'variants',
+        )
 
     @action(detail=False, methods=['get'], url_path='popular')
     def popular_products(self, request):
@@ -42,6 +51,32 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         Возвращает только товары, отмеченные для отображения в популярном (is_popular=True)
         """
         products = self.get_queryset().filter(is_popular=True)
+        serializer = self.get_serializer(products, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='search')
+    def search(self, request):
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            return Response(
+                {'detail': 'Query parameter "q" is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        products = self.get_queryset().filter(
+            Q(name__icontains=query)
+            | Q(short_description__icontains=query)
+            | Q(description__icontains=query)
+            | Q(brand__name__icontains=query)
+            | Q(category__name__icontains=query)
+            | Q(variants__sku__icontains=query)
+        ).distinct()
+
+        page = self.paginate_queryset(products)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(products, many=True)
         return Response(serializer.data)
 

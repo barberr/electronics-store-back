@@ -26,6 +26,11 @@ class Brand(models.Model):
         return self.name
 
 class Attribute(models.Model):
+    APPLIES_TO_CHOICES = [
+        ('product', 'Товар'),
+        ('variant', 'Вариант'),
+    ]
+
     TYPE_CHOICES = [
         ('string', 'Строка'),
         ('number', 'Число'),
@@ -34,12 +39,18 @@ class Attribute(models.Model):
 
     name = models.CharField("Название", max_length=100, unique=True)
     slug = models.SlugField(unique=True)
+    applies_to = models.CharField("Применяется к", max_length=20, choices=APPLIES_TO_CHOICES, default='product')
     type = models.CharField("Тип", max_length=20, choices=TYPE_CHOICES, default='string')
+    is_required = models.BooleanField("Обязательный", default=False)
+    sort_order = models.PositiveIntegerField("Порядок", default=0)
+    unit = models.CharField("Единица измерения", max_length=50, blank=True)
+    group_name = models.CharField("Группа", max_length=100, blank=True)
     values = models.JSONField("Возможные значения", blank=True, null=True, help_text="Для enum: [\"red\", \"blue\"]")
 
     class Meta:
         verbose_name = "Атрибут"
         verbose_name_plural = "Атрибуты"
+        ordering = ['sort_order', 'name']
 
     def __str__(self):
         return self.name
@@ -83,6 +94,7 @@ class Product(models.Model):
     
     seo_title = models.CharField("SEO заголовок", max_length=150, blank=True)
     seo_description = models.TextField("SEO описание", max_length=300, blank=True)
+    specifications = models.JSONField("Характеристики товара", default=dict, blank=True)
     
     is_active = models.BooleanField("Активен", default=True)
     is_preorder = models.BooleanField("Предзаказ", default=False)

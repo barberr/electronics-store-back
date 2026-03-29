@@ -37,13 +37,36 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
 
     def get_queryset(self):
-        return Product.objects.filter(is_active=True).select_related(
+        queryset = Product.objects.filter(is_active=True).select_related(
             'brand',
             'category',
         ).prefetch_related(
             'images',
             'variants',
         )
+        return self.apply_attribute_filters(queryset)
+
+    def apply_attribute_filters(self, queryset):
+        for key, value in self.request.query_params.items():
+            value = value.strip()
+            if not value:
+                continue
+
+            if key.startswith('spec__'):
+                spec_slug = key[len('spec__'):]
+                if spec_slug:
+                    queryset = queryset.filter(
+                        **{f'specifications__{spec_slug}__iexact': value}
+                    )
+
+            if key.startswith('attr__'):
+                attr_slug = key[len('attr__'):]
+                if attr_slug:
+                    queryset = queryset.filter(
+                        **{f'variants__attributes__{attr_slug}__iexact': value}
+                    )
+
+        return queryset.distinct()
 
     @action(detail=False, methods=['get'], url_path='popular')
     def popular_products(self, request):
@@ -70,6 +93,8 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             | Q(brand__name__icontains=query)
             | Q(category__name__icontains=query)
             | Q(variants__sku__icontains=query)
+            | Q(specifications__icontains=query)
+            | Q(variants__attributes__icontains=query)
         ).distinct()
 
         page = self.paginate_queryset(products)

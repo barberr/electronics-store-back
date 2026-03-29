@@ -141,6 +141,8 @@ Category object:
 - `GET /api/v1/products/{slug}/`
 - `GET /api/v1/products/popular/`
 - `GET /api/v1/products/search/?q=iphone`
+- `GET /api/v1/products/?spec__screen-size=6.1`
+- `GET /api/v1/products/?attr__storage=256GB`
 
 `products` list and `search` return DRF paginated payload:
 
@@ -182,16 +184,47 @@ Category object:
       "warranty_months": 12,
       "created_at": "2026-03-20T10:00:00Z",
       "updated_at": "2026-03-20T10:00:00Z",
+      "specifications": [
+        {
+          "id": 10,
+          "name": "Диагональ экрана",
+          "slug": "screen-size",
+          "type": "number",
+          "applies_to": "product",
+          "is_required": false,
+          "unit": "дюйм",
+          "group_name": "",
+          "value": "6.1"
+        }
+      ],
+      "specifications_map": {
+        "screen-size": "6.1"
+      },
       "images": [],
       "variants": [
         {
           "id": 1,
           "sku": "APL-IP15PRO-256",
-          "attributes": {},
+          "attributes": {
+            "storage": "256GB"
+          },
           "price": "999.00",
           "old_price": null,
           "is_active": true,
-          "stock": 5
+          "stock": 5,
+          "attribute_values": [
+            {
+              "id": 11,
+              "name": "Память",
+              "slug": "storage",
+              "type": "enum",
+              "applies_to": "variant",
+              "is_required": false,
+              "unit": "",
+              "group_name": "",
+              "value": "256GB"
+            }
+          ]
         }
       ]
     }
@@ -202,9 +235,17 @@ Category object:
 Search notes:
 
 - Query param: `q`
-- Search fields: `name`, `short_description`, `description`, `brand.name`, `category.name`, `variants.sku`
+- Search fields: `name`, `short_description`, `description`, `brand.name`, `category.name`, `variants.sku`, `specifications`, `variants.attributes`
 - Only active products are returned
 - Empty `q` returns `400`
+
+Filter notes:
+
+- `spec__<slug>=value` filters by product-level characteristics
+- `attr__<slug>=value` filters by variant-level characteristics
+- Examples:
+  - `/api/v1/products/?spec__screen-size=6.1`
+  - `/api/v1/products/?attr__storage=256GB`
 
 Error example:
 
@@ -223,6 +264,23 @@ Error example:
 
 - `GET /api/v1/attributes/`
 - `GET /api/v1/attributes/{slug}/`
+
+Attribute object:
+
+```json
+{
+  "id": 11,
+  "name": "Память",
+  "slug": "storage",
+  "applies_to": "variant",
+  "type": "enum",
+  "is_required": false,
+  "sort_order": 0,
+  "unit": "",
+  "group_name": "",
+  "values": ["128GB", "256GB"]
+}
+```
 
 ### Overview
 

@@ -1,6 +1,30 @@
 from rest_framework import serializers
 from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order, HeroBlock
 
+
+def serialize_attribute_value(attribute, value):
+    return {
+        'id': attribute.id,
+        'name': attribute.name,
+        'slug': attribute.slug,
+        'type': attribute.type,
+        'applies_to': attribute.applies_to,
+        'is_required': attribute.is_required,
+        'unit': attribute.unit,
+        'group_name': attribute.group_name,
+        'value': value,
+    }
+
+
+def get_category_attribute_map(category, applies_to):
+    if not category:
+        return {}
+    return {
+        attribute.slug: attribute
+        for attribute in category.attributes.filter(applies_to=applies_to).order_by('sort_order', 'name')
+    }
+
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
@@ -20,21 +44,52 @@ class ProductImageSerializer(serializers.ModelSerializer):
 class AttributeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attribute
-        fields = ['id', 'name', 'slug', 'type', 'values']
+        fields = [
+            'id', 'name', 'slug', 'applies_to', 'type', 'is_required',
+            'sort_order', 'unit', 'group_name', 'values',
+        ]
 
 class ProductVariantSerializer(serializers.ModelSerializer):
+    attribute_values = serializers.SerializerMethodField()
+
     class Meta:
         model = ProductVariant
         fields = [
             'id', 'sku', 'attributes', 'price', 'old_price',
-            'is_active', 'stock'
+            'is_active', 'stock', 'attribute_values',
         ]
+
+    def get_attribute_values(self, obj):
+        product = getattr(obj, 'product', None)
+        category = getattr(product, 'category', None)
+        attribute_map = get_category_attribute_map(category, 'variant')
+
+        resolved_values = []
+        for slug, value in (obj.attributes or {}).items():
+            attribute = attribute_map.get(slug)
+            if attribute is None:
+                resolved_values.append({
+                    'id': None,
+                    'name': slug,
+                    'slug': slug,
+                    'type': 'string',
+                    'applies_to': 'variant',
+                    'is_required': False,
+                    'unit': '',
+                    'group_name': '',
+                    'value': value,
+                })
+                continue
+            resolved_values.append(serialize_attribute_value(attribute, value))
+        return resolved_values
 
 class ProductSerializer(serializers.ModelSerializer):
     brand = BrandSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
+    specifications = serializers.SerializerMethodField()
+    specifications_map = serializers.JSONField(source='specifications', read_only=True)
 
     class Meta:
         model = Product
@@ -45,8 +100,31 @@ class ProductSerializer(serializers.ModelSerializer):
             'is_active', 'is_preorder',
             'delivery_text', 'warranty_months',
             'created_at', 'updated_at',
+            'specifications', 'specifications_map',
             'images', 'variants'
         ]
+
+    def get_specifications(self, obj):
+        attribute_map = get_category_attribute_map(obj.category, 'product')
+
+        resolved_values = []
+        for slug, value in (obj.specifications or {}).items():
+            attribute = attribute_map.get(slug)
+            if attribute is None:
+                resolved_values.append({
+                    'id': None,
+                    'name': slug,
+                    'slug': slug,
+                    'type': 'string',
+                    'applies_to': 'product',
+                    'is_required': False,
+                    'unit': '',
+                    'group_name': '',
+                    'value': value,
+                })
+                continue
+            resolved_values.append(serialize_attribute_value(attribute, value))
+        return resolved_values
 
 
 class BrandDetailSerializer(serializers.ModelSerializer):

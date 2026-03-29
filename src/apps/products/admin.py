@@ -1,10 +1,102 @@
 from django import forms
 from django.contrib import admin
-from django.db import models as django_models
 from django.db.models import Count, Min
+from django.forms.models import BaseInlineFormSet
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from decimal import Decimal
 from .models import Category, Brand, Product, ProductImage, ProductVariant, Attribute, Order, OrderItem, HeroBlock
+
+
+SPEC_FIELD_PREFIX = 'spec__'
+VARIANT_FIELD_PREFIX = 'attr__'
+
+
+def build_attribute_form_field(attribute, required=None):
+    required = attribute.is_required if required is None else required
+    label = attribute.name if not attribute.unit else f'{attribute.name}, {attribute.unit}'
+
+    if attribute.type == 'enum':
+        choices = [('', '---------')]
+        choices.extend((value, value) for value in (attribute.values or []))
+        return forms.ChoiceField(label=label, choices=choices, required=required)
+
+    if attribute.type == 'number':
+        return forms.DecimalField(label=label, required=required, decimal_places=2)
+
+    return forms.CharField(label=label, required=required)
+
+
+def get_category_attributes(category, applies_to):
+    if not category:
+        return []
+    return list(category.attributes.filter(applies_to=applies_to).order_by('sort_order', 'name'))
+
+
+def normalize_attribute_value(value):
+    if isinstance(value, Decimal):
+        return format(value, 'f')
+    return value
+
+
+class ProductAdminForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        exclude = ['specifications']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.product_attributes = getattr(self, 'product_attributes', [])
+        category = getattr(self, 'resolved_category', None) or self._resolve_category()
+
+        if category and not self.product_attributes:
+            self.product_attributes = get_category_attributes(category, 'product')
+
+        current_specs = self.instance.specifications or {}
+        for attribute in self.product_attributes:
+            field_name = f'{SPEC_FIELD_PREFIX}{attribute.slug}'
+            if field_name not in self.fields:
+                self.fields[field_name] = build_attribute_form_field(attribute)
+            self.fields[field_name].initial = current_specs.get(attribute.slug)
+
+    def _resolve_category(self):
+        category_id = None
+        if self.is_bound:
+            category_id = self.data.get('category')
+        elif self.instance and self.instance.category_id:
+            category_id = self.instance.category_id
+        else:
+            category_id = self.initial.get('category')
+
+        if not category_id:
+            return None
+
+        try:
+            return Category.objects.get(pk=category_id)
+        except (Category.DoesNotExist, ValueError, TypeError):
+            return None
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not self.product_attributes:
+            cleaned_data['specifications'] = self.instance.specifications or {}
+            return cleaned_data
+
+        cleaned_data['specifications'] = {
+            attribute.slug: normalize_attribute_value(cleaned_data.get(f'{SPEC_FIELD_PREFIX}{attribute.slug}'))
+            for attribute in self.product_attributes
+            if cleaned_data.get(f'{SPEC_FIELD_PREFIX}{attribute.slug}') not in (None, '')
+        }
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.specifications = self.cleaned_data.get('specifications', {})
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 # =============== КАТЕГОРИИ ===============
 @admin.register(Category)
@@ -13,7 +105,8 @@ class CategoryAdmin(admin.ModelAdmin):
     list_filter = ['parent', 'created_at']
     search_fields = ['name', 'slug']
     prepopulated_fields = {'slug': ('name',)}
-    fields = ['name', 'slug', 'parent', 'description', 'is_header_menu', 'order', 'image']
+    filter_horizontal = ['attributes']
+    fields = ['name', 'slug', 'parent', 'description', 'is_header_menu', 'order', 'image', 'attributes']
 
 
 # =============== БРЕНДЫ ===============
@@ -28,11 +121,11 @@ class BrandAdmin(admin.ModelAdmin):
 # =============== АТРИБУТЫ ===============
 @admin.register(Attribute)
 class AttributeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'slug', 'type', 'values']
-    list_filter = ['type']
+    list_display = ['name', 'slug', 'applies_to', 'type', 'is_required', 'sort_order']
+    list_filter = ['applies_to', 'type', 'is_required']
     search_fields = ['name', 'slug']
     prepopulated_fields = {'slug': ('name',)}
-    fields = ['name', 'slug', 'type', 'values']
+    fields = ['name', 'slug', 'applies_to', 'type', 'is_required', 'sort_order', 'group_name', 'unit', 'values']
 
 
 # =============== ИЗОБРАЖЕНИЯ ТОВАРА (INLINE) ===============
@@ -56,46 +149,93 @@ class ProductImageInline(admin.TabularInline):
 class ProductVariantAdminForm(forms.ModelForm):
     class Meta:
         model = ProductVariant
-        fields = '__all__'
-        widgets = {
-            'attributes': forms.Textarea(
-                attrs={
-                    'rows': 4,
-                    'cols': 60,
-                    'style': 'font-family: monospace;',
-                }
-            ),
+        exclude = ['attributes']
+
+    def __init__(self, *args, category=None, **kwargs):
+        self.category = category or getattr(self, 'resolved_category', None)
+        super().__init__(*args, **kwargs)
+        self.variant_attributes = getattr(self, 'variant_attributes', [])
+        if self.category and not self.variant_attributes:
+            self.variant_attributes = get_category_attributes(self.category, 'variant')
+
+        current_attributes = self.instance.attributes or {}
+        for attribute in self.variant_attributes:
+            field_name = f'{VARIANT_FIELD_PREFIX}{attribute.slug}'
+            if field_name not in self.fields:
+                self.fields[field_name] = build_attribute_form_field(attribute)
+            self.fields[field_name].initial = current_attributes.get(attribute.slug)
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not self.variant_attributes:
+            cleaned_data['attributes'] = self.instance.attributes or {}
+            return cleaned_data
+
+        cleaned_data['attributes'] = {
+            attribute.slug: normalize_attribute_value(cleaned_data.get(f'{VARIANT_FIELD_PREFIX}{attribute.slug}'))
+            for attribute in self.variant_attributes
+            if cleaned_data.get(f'{VARIANT_FIELD_PREFIX}{attribute.slug}') not in (None, '')
         }
-        help_texts = {
-            'attributes': 'JSON, например: {"color": "Black", "storage": "256GB"}',
-        }
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.attributes = self.cleaned_data.get('attributes', {})
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class ProductVariantInlineFormSet(BaseInlineFormSet):
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs['category'] = getattr(self.instance, 'category', None)
+        return kwargs
 
 
 class ProductVariantInline(admin.StackedInline):
     model = ProductVariant
     form = ProductVariantAdminForm
+    formset = ProductVariantInlineFormSet
     extra = 1
-    fields = [
-        ('sku', 'is_active'),
-        ('price', 'old_price', 'discount_percent'),
-        ('stock', 'stock_status'),
-        'attributes',
-    ]
     readonly_fields = ['discount_percent', 'stock_status']
     verbose_name = 'Вариант товара'
     verbose_name_plural = 'Варианты товара'
 
-    formfield_overrides = {
-        django_models.JSONField: {
-            'widget': forms.Textarea(
-                attrs={
-                    'rows': 4,
-                    'cols': 60,
-                    'style': 'font-family: monospace;',
-                }
-            ),
-        },
-    }
+    def get_extra(self, request, obj=None, **kwargs):
+        if obj is None or obj.category_id is None:
+            return 0
+        return super().get_extra(request, obj, **kwargs)
+
+    def get_fields(self, request, obj=None):
+        fields = [
+            ('sku', 'is_active'),
+            ('price', 'old_price', 'discount_percent'),
+            ('stock', 'stock_status'),
+        ]
+        for attribute in get_category_attributes(getattr(obj, 'category', None), 'variant'):
+            fields.append(f'{VARIANT_FIELD_PREFIX}{attribute.slug}')
+        return fields
+
+    def get_formset(self, request, obj=None, **kwargs):
+        variant_attributes = get_category_attributes(getattr(obj, 'category', None), 'variant')
+        dynamic_form_attrs = {
+            'variant_attributes': variant_attributes,
+            'resolved_category': getattr(obj, 'category', None),
+        }
+        for attribute in variant_attributes:
+            field_name = f'{VARIANT_FIELD_PREFIX}{attribute.slug}'
+            dynamic_form_attrs[field_name] = build_attribute_form_field(attribute)
+
+        kwargs['form'] = type(
+            'DynamicProductVariantAdminForm',
+            (self.form,),
+            dynamic_form_attrs,
+        )
+        formset = super().get_formset(request, obj, **kwargs)
+        return formset
 
     def discount_percent(self, obj):
         if not obj.pk or not obj.old_price or obj.old_price <= obj.price:
@@ -122,6 +262,7 @@ class ProductVariantInline(admin.StackedInline):
 # =============== ТОВАРЫ ===============
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    form = ProductAdminForm
     list_display = [
         'product_preview',
         'name',
@@ -143,33 +284,87 @@ class ProductAdmin(admin.ModelAdmin):
     prepopulated_fields = {'slug': ('name',)}
     list_select_related = ['category', 'brand']
     autocomplete_fields = ['category', 'brand']
-    readonly_fields = ['created_at', 'updated_at', 'product_preview', 'variants_summary']
+    readonly_fields = ['created_at', 'updated_at', 'product_preview', 'variants_summary', 'category_attributes_hint']
     ordering = ['-created_at']
     list_per_page = 25
     save_on_top = True
     
-    fieldsets = (
-        ('Основное', {
-            'fields': ('name', 'slug', 'category', 'brand', 'product_preview')
-        }),
-        ('Описание', {
-            'fields': ('short_description', 'description', 'delivery_text'),
-            'classes': ('collapse',)
-        }),
-        ('SEO', {
-            'fields': ('seo_title', 'seo_description'),
-            'classes': ('collapse',)
-        }),
-        ('Настройки', {
-            'fields': ('is_active', 'is_preorder', 'is_popular', 'warranty_months')
-        }),
-        ('Сводка', {
-            'fields': ('variants_summary', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
     inlines = [ProductImageInline, ProductVariantInline]
+
+    def get_fieldsets(self, request, obj=None):
+        category = self._resolve_category(request, obj)
+        product_attribute_fields = [
+            f'{SPEC_FIELD_PREFIX}{attribute.slug}'
+            for attribute in get_category_attributes(category, 'product')
+        ]
+
+        return (
+            ('Основное', {
+                'fields': ('name', 'slug', 'category', 'brand', 'product_preview')
+            }),
+            ('Описание', {
+                'fields': ('short_description', 'description', 'delivery_text'),
+                'classes': ('collapse',)
+            }),
+            ('Характеристики товара', {
+                'fields': tuple(product_attribute_fields or ['category_attributes_hint']),
+                'classes': ('collapse',),
+                'description': 'После выбора категории и сохранения товара здесь появятся подходящие характеристики.',
+            }),
+            ('SEO', {
+                'fields': ('seo_title', 'seo_description'),
+                'classes': ('collapse',)
+            }),
+            ('Настройки', {
+                'fields': ('is_active', 'is_preorder', 'is_popular', 'warranty_months')
+            }),
+            ('Сводка', {
+                'fields': ('variants_summary', 'created_at', 'updated_at'),
+                'classes': ('collapse',)
+            }),
+        )
+
+    def _resolve_category(self, request, obj=None):
+        category_id = request.POST.get('category') or request.GET.get('category')
+        if not category_id and obj is not None:
+            category_id = obj.category_id
+
+        if not category_id:
+            return None
+
+        try:
+            return Category.objects.get(pk=category_id)
+        except (Category.DoesNotExist, ValueError, TypeError):
+            return None
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        category = self._resolve_category(request, obj)
+        product_attributes = get_category_attributes(category, 'product')
+
+        if 'fields' not in kwargs:
+            kwargs['fields'] = forms.ALL_FIELDS
+
+        dynamic_form_attrs = {
+            'product_attributes': product_attributes,
+            'resolved_category': category,
+        }
+        for attribute in product_attributes:
+            field_name = f'{SPEC_FIELD_PREFIX}{attribute.slug}'
+            dynamic_form_attrs[field_name] = build_attribute_form_field(attribute)
+
+        kwargs['form'] = type(
+            'DynamicProductAdminForm',
+            (self.form,),
+            dynamic_form_attrs,
+        )
+
+        return super().get_form(request, obj, change=change, **kwargs)
+
+    def category_attributes_hint(self, obj):
+        if obj and obj.category_id:
+            return 'Для этой категории пока не настроены общие характеристики.'
+        return 'Сначала выберите категорию и сохраните товар, затем появятся нужные поля характеристик и варианты.'
+    category_attributes_hint.short_description = 'Подсказка'
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)

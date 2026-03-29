@@ -1,9 +1,11 @@
 from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .admin import ProductAdminForm, ProductVariantAdminForm
-from .models import Attribute, Brand, Category, Product, ProductVariant
+from .admin import ProductAdminForm, ProductImageAdminForm, ProductVariantAdminForm
+from .models import Attribute, Brand, Category, Product, ProductImage, ProductVariant
 
 
 class ProductSearchAPITests(APITestCase):
@@ -263,6 +265,97 @@ class ProductAdminFormTests(TestCase):
 
         self.assertEqual(variant.attributes, {'storage': '256GB'})
 
+    def test_product_image_form_builds_color_choices_from_category_attribute(self):
+        color = Attribute.objects.create(
+            name='Цвет',
+            slug='color',
+            applies_to='variant',
+            type='enum',
+            values=['Black', 'White'],
+        )
+        self.category.attributes.add(color)
+        product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+            brand=self.brand,
+        )
+
+        form = ProductImageAdminForm(category=self.category, instance=ProductImage(product=product))
+
+        self.assertEqual(
+            list(form.fields['color_value'].choices),
+            [('', '---------'), ('Black', 'Black'), ('White', 'White')],
+        )
+
+    def test_product_image_form_keeps_existing_color_value_if_missing_in_attribute(self):
+        color = Attribute.objects.create(
+            name='Цвет',
+            slug='color',
+            applies_to='variant',
+            type='enum',
+            values=['White'],
+        )
+        self.category.attributes.add(color)
+        product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+            brand=self.brand,
+        )
+
+        form = ProductImageAdminForm(
+            category=self.category,
+            instance=ProductImage(product=product, color_value='Black'),
+        )
+
+        self.assertEqual(
+            list(form.fields['color_value'].choices),
+            [('', '---------'), ('White', 'White'), ('Black', 'Black')],
+        )
+
+    def test_product_image_model_validates_color_value_against_color_attribute(self):
+        color = Attribute.objects.create(
+            name='Цвет',
+            slug='color',
+            applies_to='variant',
+            type='enum',
+            values=['Black', 'White'],
+        )
+        self.category.attributes.add(color)
+        product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+            brand=self.brand,
+        )
+
+        media = ProductImage(
+            product=product,
+            image=SimpleUploadedFile('demo.jpg', b'fake-image-content', content_type='image/jpeg'),
+            color_value='Gold',
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'Выберите одно из значений атрибута color'):
+            media.full_clean()
+
+    def test_product_image_model_requires_color_attribute_when_color_value_is_set(self):
+        product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+            brand=self.brand,
+        )
+
+        media = ProductImage(
+            product=product,
+            image=SimpleUploadedFile('demo.jpg', b'fake-image-content', content_type='image/jpeg'),
+            color_value='Black',
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'Для категории товара не настроен variant-атрибут color'):
+            media.full_clean()
+
 
 class ProductCharacteristicsAPITests(APITestCase):
     def setUp(self):
@@ -273,6 +366,13 @@ class ProductCharacteristicsAPITests(APITestCase):
         self.brand = Brand.objects.create(
             name='Apple',
             slug='apple',
+        )
+        self.color = Attribute.objects.create(
+            name='Цвет',
+            slug='color',
+            applies_to='variant',
+            type='enum',
+            values=['Black', 'White'],
         )
         self.screen_size = Attribute.objects.create(
             name='Диагональ экрана',
@@ -288,7 +388,7 @@ class ProductCharacteristicsAPITests(APITestCase):
             type='enum',
             values=['128GB', '256GB'],
         )
-        self.category.attributes.add(self.screen_size, self.storage)
+        self.category.attributes.add(self.screen_size, self.storage, self.color)
 
         self.product = Product.objects.create(
             name='iPhone 15 Pro',
@@ -301,7 +401,7 @@ class ProductCharacteristicsAPITests(APITestCase):
         ProductVariant.objects.create(
             product=self.product,
             sku='APL-IP15PRO-256',
-            attributes={'storage': '256GB'},
+            attributes={'storage': '256GB', 'color': 'Black'},
             price='999.00',
             stock=5,
             is_active=True,
@@ -315,6 +415,113 @@ class ProductCharacteristicsAPITests(APITestCase):
         self.assertEqual(response.data['specifications'][0]['slug'], 'screen-size')
         self.assertEqual(response.data['specifications'][0]['unit'], 'дюйм')
         self.assertEqual(response.data['specifications'][0]['value'], '6.1')
-        self.assertEqual(response.data['variants'][0]['attributes'], {'storage': '256GB'})
-        self.assertEqual(response.data['variants'][0]['attribute_values'][0]['slug'], 'storage')
-        self.assertEqual(response.data['variants'][0]['attribute_values'][0]['value'], '256GB')
+        self.assertEqual(response.data['variants'][0]['attributes']['storage'], '256GB')
+        self.assertEqual(response.data['variants'][0]['attributes']['color'], 'Black')
+        attribute_values = {item['slug']: item['value'] for item in response.data['variants'][0]['attribute_values']}
+        self.assertEqual(attribute_values['storage'], '256GB')
+        self.assertEqual(attribute_values['color'], 'Black')
+
+    def test_variant_media_includes_common_and_color_specific_assets(self):
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('common.jpg', b'fake-image-content', content_type='image/jpeg'),
+            alt_text='common',
+            order=0,
+        )
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('black.mp4', b'fake-mp4-content', content_type='video/mp4'),
+            alt_text='black',
+            color_value='Black',
+            order=1,
+        )
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('white.jpg', b'fake-image-content', content_type='image/jpeg'),
+            alt_text='white',
+            color_value='White',
+            order=2,
+        )
+
+        response = self.client.get(f'/api/v1/products/{self.product.slug}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        media = response.data['variants'][0]['media']
+        self.assertEqual(len(media), 2)
+        self.assertEqual(media[0]['alt_text'], 'common')
+        self.assertEqual(media[1]['alt_text'], 'black')
+        self.assertEqual(media[1]['media_type'], 'video')
+
+    def test_variant_without_color_receives_only_common_media(self):
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('common.jpg', b'fake-image-content', content_type='image/jpeg'),
+            alt_text='common',
+            order=0,
+        )
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('black.jpg', b'fake-image-content', content_type='image/jpeg'),
+            alt_text='black',
+            color_value='Black',
+            order=1,
+        )
+        ProductVariant.objects.create(
+            product=self.product,
+            sku='APL-IP15PRO-128',
+            attributes={'storage': '128GB'},
+            price='899.00',
+            stock=3,
+            is_active=True,
+        )
+
+        response = self.client.get(f'/api/v1/products/{self.product.slug}/')
+
+        variant = next(item for item in response.data['variants'] if item['sku'] == 'APL-IP15PRO-128')
+        self.assertEqual(len(variant['media']), 1)
+        self.assertEqual(variant['media'][0]['alt_text'], 'common')
+
+
+class ProductMediaTests(TestCase):
+    def setUp(self):
+        self.category = Category.objects.create(
+            name='Смартфоны',
+            slug='smartphones',
+        )
+        self.product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+        )
+
+    def test_product_media_accepts_mp4(self):
+        media = ProductImage(
+            product=self.product,
+            image=SimpleUploadedFile('demo.mp4', b'fake-mp4-content', content_type='video/mp4'),
+        )
+
+        media.full_clean()
+
+    def test_product_media_rejects_unsupported_extension(self):
+        media = ProductImage(
+            product=self.product,
+            image=SimpleUploadedFile('demo.mov', b'fake-video-content', content_type='video/quicktime'),
+        )
+
+        with self.assertRaisesMessage(ValidationError, 'Поддерживаются изображения'):
+            media.full_clean()
+
+    def test_product_detail_returns_media_type_for_videos(self):
+        ProductImage.objects.create(
+            product=self.product,
+            image=SimpleUploadedFile('demo.mp4', b'fake-mp4-content', content_type='video/mp4'),
+            alt_text='promo',
+            color_value='',
+            order=0,
+        )
+
+        response = self.client.get(f'/api/v1/products/{self.product.slug}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['images'][0]['media_type'], 'video')
+        self.assertTrue(response.data['images'][0]['image'].endswith('.mp4'))

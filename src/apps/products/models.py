@@ -5,11 +5,29 @@ from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+PRODUCT_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg', '.avif'}
+PRODUCT_VIDEO_EXTENSIONS = {'.mp4'}
+
+
 def validate_video_file(value):
     """Проверяет, что загружаемый файл — это MP4"""
     ext = os.path.splitext(value.name)[1].lower()
     if ext not in ['.mp4']:
         raise ValidationError(_('Поддерживается только формат .mp4'))
+
+
+def validate_product_media_file(value):
+    """Разрешает изображения товара и MP4-видео."""
+    ext = os.path.splitext(value.name)[1].lower()
+    allowed_extensions = PRODUCT_IMAGE_EXTENSIONS | PRODUCT_VIDEO_EXTENSIONS
+    if ext not in allowed_extensions:
+        raise ValidationError(
+            _('Поддерживаются изображения (%(images)s) и видео %(videos)s'),
+            params={
+                'images': ', '.join(sorted(PRODUCT_IMAGE_EXTENSIONS)),
+                'videos': ', '.join(sorted(PRODUCT_VIDEO_EXTENSIONS)),
+            },
+        )
 
 class Brand(models.Model):
     name = models.CharField("Название", max_length=100, unique=True)
@@ -116,17 +134,67 @@ class Product(models.Model):
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField("Изображение", upload_to="products/images/%Y/%m/%d/")
+    image = models.FileField(
+        "Медиа",
+        upload_to="products/images/%Y/%m/%d/",
+        validators=[validate_product_media_file],
+    )
     alt_text = models.CharField("Alt текст", max_length=255, blank=True)
+    color_value = models.CharField(
+        "Цвет варианта",
+        max_length=100,
+        blank=True,
+        help_text="Например: Black. Оставьте пустым, если медиа подходит для всех цветов.",
+    )
     order = models.PositiveIntegerField("Порядок", default=0)
 
     class Meta:
-        verbose_name = "Изображение"
-        verbose_name_plural = "Изображения"
+        verbose_name = "Медиафайл"
+        verbose_name_plural = "Медиафайлы"
         ordering = ['order']
 
     def __str__(self):
         return f"{self.product} - {self.image}"
+
+    def clean(self):
+        super().clean()
+
+        if not self.color_value:
+            return
+
+        if not self.product_id and not getattr(self, 'product', None):
+            return
+
+        product = getattr(self, 'product', None)
+        category = getattr(product, 'category', None)
+        if category is None:
+            return
+
+        color_attribute = category.attributes.filter(
+            applies_to='variant',
+            slug='color',
+            type='enum',
+        ).first()
+
+        if color_attribute is None:
+            raise ValidationError({
+                'color_value': _('Для категории товара не настроен variant-атрибут color.')
+            })
+
+        allowed_values = list(color_attribute.values or [])
+        if self.color_value not in allowed_values:
+            raise ValidationError({
+                'color_value': _(
+                    'Выберите одно из значений атрибута color: %(values)s'
+                ) % {'values': ', '.join(allowed_values)}
+            })
+
+    @property
+    def media_type(self):
+        ext = os.path.splitext(self.image.name)[1].lower()
+        if ext in PRODUCT_VIDEO_EXTENSIONS:
+            return 'video'
+        return 'image'
 
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variants")

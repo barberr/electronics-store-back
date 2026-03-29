@@ -33,6 +33,29 @@ def get_category_attributes(category, applies_to):
     return list(category.attributes.filter(applies_to=applies_to).order_by('sort_order', 'name'))
 
 
+def get_category_color_attribute(category):
+    if not category:
+        return None
+    return category.attributes.filter(
+        applies_to='variant',
+        slug='color',
+        type='enum',
+    ).first()
+
+
+def get_color_value_choices(category, current_value=''):
+    color_attribute = get_category_color_attribute(category)
+    choices = [('', '---------')]
+
+    if color_attribute:
+        choices.extend((value, value) for value in (color_attribute.values or []))
+
+    if current_value and current_value not in {choice_value for choice_value, _ in choices}:
+        choices.append((current_value, current_value))
+
+    return choices
+
+
 def normalize_attribute_value(value):
     if isinstance(value, Decimal):
         return format(value, 'f')
@@ -129,14 +152,47 @@ class AttributeAdmin(admin.ModelAdmin):
 
 
 # =============== ИЗОБРАЖЕНИЯ ТОВАРА (INLINE) ===============
+class ProductImageAdminForm(forms.ModelForm):
+    class Meta:
+        model = ProductImage
+        fields = '__all__'
+
+    def __init__(self, *args, category=None, **kwargs):
+        self.category = category or getattr(self, 'resolved_category', None)
+        super().__init__(*args, **kwargs)
+
+        current_value = self.instance.color_value if self.instance else ''
+        self.fields['color_value'] = forms.ChoiceField(
+            label='Цвет варианта',
+            required=False,
+            choices=get_color_value_choices(self.category, current_value=current_value),
+            help_text='Значения берутся из variant-атрибута color. Пустое значение означает медиа для всех цветов.',
+        )
+        self.fields['color_value'].initial = current_value
+
+
+class ProductImageInlineFormSet(BaseInlineFormSet):
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs['category'] = getattr(self.instance, 'category', None)
+        return kwargs
+
+
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
+    form = ProductImageAdminForm
+    formset = ProductImageInlineFormSet
     extra = 0
-    fields = ['image_preview', 'image', 'alt_text', 'order']
+    fields = ['image_preview', 'image', 'color_value', 'alt_text', 'order']
     readonly_fields = ['image_preview']
 
     def image_preview(self, obj):
         if obj.pk and obj.image:
+            if obj.media_type == 'video':
+                return format_html(
+                    '<video src="{}" style="max-height: 64px; border-radius: 6px;" controls muted preload="metadata"></video>',
+                    obj.image.url,
+                )
             return format_html(
                 '<img src="{}" style="max-height: 64px; border-radius: 6px;" />',
                 obj.image.url,
@@ -376,6 +432,11 @@ class ProductAdmin(admin.ModelAdmin):
     def product_preview(self, obj):
         first_image = obj.images.order_by('order', 'id').first()
         if first_image and first_image.image:
+            if first_image.media_type == 'video':
+                return format_html(
+                    '<video src="{}" style="max-height: 52px; border-radius: 6px;" muted preload="metadata"></video>',
+                    first_image.image.url,
+                )
             return format_html(
                 '<img src="{}" style="max-height: 52px; border-radius: 6px;" />',
                 first_image.image.url,

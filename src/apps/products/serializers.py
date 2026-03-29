@@ -36,10 +36,12 @@ class BrandSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'logo', 'created_at', 'updated_at']
 
 class ProductImageSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField(use_url=True)
+    image = serializers.FileField(use_url=True)
+    media_type = serializers.ReadOnlyField()
+
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'alt_text', 'order']
+        fields = ['id', 'image', 'media_type', 'alt_text', 'color_value', 'order']
 
 class AttributeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -51,12 +53,13 @@ class AttributeSerializer(serializers.ModelSerializer):
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     attribute_values = serializers.SerializerMethodField()
+    media = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductVariant
         fields = [
             'id', 'sku', 'attributes', 'price', 'old_price',
-            'is_active', 'stock', 'attribute_values',
+            'is_active', 'stock', 'attribute_values', 'media',
         ]
 
     def get_attribute_values(self, obj):
@@ -82,6 +85,26 @@ class ProductVariantSerializer(serializers.ModelSerializer):
                 continue
             resolved_values.append(serialize_attribute_value(attribute, value))
         return resolved_values
+
+    def get_media(self, obj):
+        product = getattr(obj, 'product', None)
+        if product is None:
+            return []
+
+        color_value = (obj.attributes or {}).get('color')
+        product_media = product.images.all().order_by('order', 'id')
+
+        if color_value:
+            normalized_color_values = {str(color_value).strip().lower()}
+            filtered_media = [
+                media
+                for media in product_media
+                if not media.color_value or media.color_value.strip().lower() in normalized_color_values
+            ]
+        else:
+            filtered_media = [media for media in product_media if not media.color_value]
+
+        return ProductImageSerializer(filtered_media, many=True, context=self.context).data
 
 class ProductSerializer(serializers.ModelSerializer):
     brand = BrandSerializer(read_only=True)

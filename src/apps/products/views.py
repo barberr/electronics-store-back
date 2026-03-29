@@ -124,7 +124,7 @@ class BrandViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 class ProductVariantViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ProductVariant.objects.filter(is_active=True).select_related('product')
+    queryset = ProductVariant.objects.filter(is_active=True).select_related('product').prefetch_related('product__images')
     serializer_class = ProductVariantSerializer
     lookup_field = 'sku'
 

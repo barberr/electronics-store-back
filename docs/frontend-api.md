@@ -200,7 +200,15 @@ Category object:
       "specifications_map": {
         "screen-size": "6.1"
       },
-      "images": [],
+      "images": [
+        {
+          "id": 11,
+          "image": "/media/products/images/2026/03/29/demo.mp4",
+          "media_type": "video",
+          "alt_text": "promo",
+          "order": 0
+        }
+      ],
       "variants": [
         {
           "id": 1,
@@ -224,6 +232,24 @@ Category object:
               "group_name": "",
               "value": "256GB"
             }
+          ],
+          "media": [
+            {
+              "id": 11,
+              "image": "/media/products/images/2026/03/29/black-front.jpg",
+              "media_type": "image",
+              "alt_text": "Front view",
+              "color_value": "Black",
+              "order": 0
+            },
+            {
+              "id": 12,
+              "image": "/media/products/images/2026/03/29/black-preview.mp4",
+              "media_type": "video",
+              "alt_text": "Black finish preview",
+              "color_value": "Black",
+              "order": 1
+            }
           ]
         }
       ]
@@ -238,6 +264,32 @@ Search notes:
 - Search fields: `name`, `short_description`, `description`, `brand.name`, `category.name`, `variants.sku`, `specifications`, `variants.attributes`
 - Only active products are returned
 - Empty `q` returns `400`
+
+### Product media
+
+`images` is now effectively a product media array. Each item has:
+
+- `image`: URL to the uploaded file
+- `media_type`: `image` or `video`
+- `alt_text`: optional caption / alt text
+- `color_value`: optional color binding, for example `Black`
+- `order`: sort order
+
+Frontend rendering rule:
+
+- if `media_type === "video"`: render `<video>`
+- otherwise: render `<img>`
+
+Backward-compatible fallback:
+
+- if `media_type` is missing, treat the item as `image`
+
+Color-aware variant media:
+
+- Product-level `images` contains the full media pool
+- Each variant additionally has `media`, already filtered for its `attributes.color`
+- Media with empty `color_value` is considered common and is included for every variant
+- Media with a filled `color_value` is included only for variants with the same `attributes.color`
 
 Filter notes:
 
@@ -426,6 +478,68 @@ These endpoints require authentication.
 - Product list endpoints are paginated
 - Category, brand and related product endpoints currently return full arrays without pagination
 - `overview` is the simplest endpoint for initial catalog preload
+
+### Media rendering adaptation
+
+For product cards, gallery thumbnails, and product detail sliders, do not assume that every item in `images` is an image.
+
+Recommended normalization:
+
+```ts
+type ProductMedia = {
+  id: number;
+  image: string;
+  media_type?: 'image' | 'video';
+  alt_text: string;
+  order: number;
+};
+
+const normalizeProductMedia = (items: ProductMedia[]) =>
+  items.map((item) => ({
+    ...item,
+    media_type: item.media_type ?? 'image',
+  }));
+```
+
+Recommended rendering:
+
+```tsx
+{selectedVariant.media.map((item) =>
+  item.media_type === 'video' ? (
+    <video
+      key={item.id}
+      src={item.image}
+      poster=""
+      muted
+      playsInline
+      preload="metadata"
+      controls
+    />
+  ) : (
+    <img
+      key={item.id}
+      src={item.image}
+      alt={item.alt_text || product.name}
+      loading="lazy"
+    />
+  )
+)}
+```
+
+Color switch behavior:
+
+```tsx
+const activeVariant = variants.find((variant) => variant.id === selectedVariantId);
+const activeMedia = activeVariant?.media?.length ? activeVariant.media : product.images;
+```
+
+Recommendations for UI behavior:
+
+- In product listing cards, prefer showing only the first media item
+- If the first media item is video, either autoplay it muted on hover or show a static video badge/play icon
+- In the product detail gallery, keep images and videos in one ordered slider
+- For thumbnails, use a play badge for `video` items
+- If your lightbox supports mixed media, open video items in the same gallery sequence
 
 ## Known Caveat
 

@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Category, Brand, Product, ProductVariant, Attribute, Order, HeroBlock
 from .serializers import (
-    CategorySerializer, BrandSerializer, ProductSerializer,
+    CategorySerializer, BrandSerializer, BrandDetailSerializer, ProductSerializer,
     ProductVariantSerializer, AttributeSerializer, OrderSerializer, HeroBlockSerializer
 )
 
@@ -85,6 +85,11 @@ class BrandViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     lookup_field = 'slug'
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return BrandDetailSerializer
+        return super().get_serializer_class()
 
     @action(detail=True, methods=['get'], url_path='products')
     def products(self, request, slug=None):

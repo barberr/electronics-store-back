@@ -82,3 +82,47 @@ class ProductSearchAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
         self.assertEqual(response.data['results'], [])
+
+
+class BrandDetailAPITests(APITestCase):
+    def setUp(self):
+        self.category = Category.objects.create(
+            name='Смартфоны',
+            slug='smartphones',
+        )
+        self.brand = Brand.objects.create(
+            name='Apple',
+            slug='apple',
+        )
+
+        self.active_product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            brand=self.brand,
+            category=self.category,
+            is_active=True,
+        )
+        ProductVariant.objects.create(
+            product=self.active_product,
+            sku='APL-IP15PRO-256',
+            price='999.00',
+            stock=5,
+            is_active=True,
+        )
+
+        Product.objects.create(
+            name='iPhone 15',
+            slug='iphone-15',
+            brand=self.brand,
+            category=self.category,
+            is_active=False,
+        )
+
+    def test_brand_detail_includes_only_active_brand_products(self):
+        response = self.client.get(f'/api/v1/brands/{self.brand.slug}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['slug'], self.brand.slug)
+        self.assertIn('products', response.data)
+        self.assertEqual(len(response.data['products']), 1)
+        self.assertEqual(response.data['products'][0]['slug'], self.active_product.slug)

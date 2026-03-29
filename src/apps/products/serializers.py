@@ -48,6 +48,25 @@ class ProductSerializer(serializers.ModelSerializer):
             'images', 'variants'
         ]
 
+
+class BrandDetailSerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Brand
+        fields = ['id', 'name', 'slug', 'logo', 'created_at', 'updated_at', 'products']
+
+    def get_products(self, obj):
+        request = self.context.get('request')
+        products = obj.products.filter(is_active=True).select_related(
+            'brand',
+            'category',
+        ).prefetch_related(
+            'images',
+            'variants',
+        )
+        return ProductSerializer(products, many=True, context={'request': request}).data
+
 class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order

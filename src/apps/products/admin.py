@@ -328,6 +328,7 @@ class ProductAdmin(admin.ModelAdmin):
         'variants_count',
         'is_active',
         'is_popular',
+        'popular_order',
         'created_at'
     ]
     list_filter = [
@@ -372,7 +373,7 @@ class ProductAdmin(admin.ModelAdmin):
                 'classes': ('collapse',)
             }),
             ('Настройки', {
-                'fields': ('is_active', 'is_preorder', 'is_popular', 'warranty_months')
+                'fields': ('is_active', 'is_preorder', 'is_popular', 'popular_order', 'warranty_months')
             }),
             ('Сводка', {
                 'fields': ('variants_summary', 'created_at', 'updated_at'),

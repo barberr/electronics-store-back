@@ -117,6 +117,7 @@ class Product(models.Model):
     is_active = models.BooleanField("Активен", default=True)
     is_preorder = models.BooleanField("Предзаказ", default=False)
     is_popular = models.BooleanField("Отображать в популярных", default=False)
+    popular_order = models.PositiveIntegerField("Порядок в популярных", default=0)
     delivery_text = models.TextField("Текст доставки", blank=True)
     warranty_months = models.PositiveSmallIntegerField("Гарантия (мес)", default=12)
     

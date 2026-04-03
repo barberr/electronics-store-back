@@ -170,6 +170,48 @@ class BrandDetailAPITests(APITestCase):
         self.assertEqual(response.data['products'][0]['slug'], self.active_product.slug)
 
 
+class PopularProductsAPITests(APITestCase):
+    def setUp(self):
+        self.category = Category.objects.create(
+            name='Смартфоны',
+            slug='smartphones',
+        )
+
+        self.first_product = Product.objects.create(
+            name='iPhone 15 Pro',
+            slug='iphone-15-pro',
+            category=self.category,
+            is_active=True,
+            is_popular=True,
+            popular_order=20,
+        )
+        self.second_product = Product.objects.create(
+            name='iPhone 15',
+            slug='iphone-15',
+            category=self.category,
+            is_active=True,
+            is_popular=True,
+            popular_order=10,
+        )
+        self.non_popular_product = Product.objects.create(
+            name='iPhone SE',
+            slug='iphone-se',
+            category=self.category,
+            is_active=True,
+            is_popular=False,
+            popular_order=1,
+        )
+
+    def test_popular_products_are_sorted_by_popular_order(self):
+        response = self.client.get('/api/v1/products/popular/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [product['slug'] for product in response.data],
+            [self.second_product.slug, self.first_product.slug],
+        )
+
+
 class ProductAdminFormTests(TestCase):
     def setUp(self):
         self.category = Category.objects.create(

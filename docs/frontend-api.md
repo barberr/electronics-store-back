@@ -146,6 +146,8 @@ Category object:
 
 `products` list and `search` return DRF paginated payload:
 
+`popular` returns only products with `is_popular=true`, ordered by `popular_order` ascending and then by creation date descending.
+
 ```json
 {
   "count": 1,

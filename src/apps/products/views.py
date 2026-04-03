@@ -73,7 +73,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Возвращает только товары, отмеченные для отображения в популярном (is_popular=True)
         """
-        products = self.get_queryset().filter(is_popular=True)
+        products = self.get_queryset().filter(is_popular=True).order_by('popular_order', '-created_at')
         serializer = self.get_serializer(products, many=True)
         return Response(serializer.data)
 

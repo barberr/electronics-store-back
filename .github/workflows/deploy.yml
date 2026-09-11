@@ -54,6 +54,9 @@ jobs:
             echo "=== Run migrations ==="
             ./venv/bin/python manage.py migrate --noinput
 
+            echo "=== Collect static ==="
+            ./venv/bin/python manage.py collectstatic --noinput
+
             echo "=== Restart service ==="
             sudo -n /usr/bin/systemctl daemon-reload
             sudo -n /usr/bin/systemctl restart electronics-store-back

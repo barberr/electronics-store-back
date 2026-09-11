@@ -1,3 +1,4 @@
+```yaml
 name: Deploy to server
 
 on:
@@ -29,15 +30,38 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }} 
+          key: ${{ secrets.SSH_KEY }}
+          command_timeout: 10m
           script: |
-            # переход в директорию проекта и обновление кода
+            set -e
+
             cd /var/www/electronics-store-back
+
+            echo "=== Pull latest code ==="
             git pull origin main
-            # при необходимости: обновление зависимостей, миграции
-            source venv/bin/activate
-            pip install -r requirements.txt
-            python manage.py migrate --noinput
-            # перезапуск systemd-сервиса
+
+            echo "=== Install dependencies ==="
+            ./venv/bin/pip install -r requirements.txt
+
+            echo "=== Load production environment ==="
+            export DJANGO_SETTINGS_MODULE=core.settings.prod
+
+            set -a
+            source /var/www/electronics-store-back/.env
+            set +a
+
+            echo "=== Check Django configuration ==="
+            ./venv/bin/python manage.py check
+
+            echo "=== Run migrations ==="
+            ./venv/bin/python manage.py migrate --noinput
+
+            echo "=== Restart service ==="
             sudo systemctl daemon-reload
             sudo systemctl restart ${{ secrets.SERVICE_NAME }}
+
+            echo "=== Check service status ==="
+            sudo systemctl is-active --quiet ${{ secrets.SERVICE_NAME }}
+
+            echo "Deploy completed successfully"
+```

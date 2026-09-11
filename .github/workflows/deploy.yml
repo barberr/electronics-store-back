@@ -64,4 +64,4 @@ jobs:
             sudo systemctl is-active --quiet ${{ secrets.SERVICE_NAME }}
 
             echo "Deploy completed successfully"
-```
+

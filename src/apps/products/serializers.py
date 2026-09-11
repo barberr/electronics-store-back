@@ -12,6 +12,7 @@ def serialize_attribute_value(attribute, value):
         'is_required': attribute.is_required,
         'unit': attribute.unit,
         'group_name': attribute.group_name,
+        'sort_order': attribute.sort_order,
         'value': value,
     }
 
@@ -131,7 +132,11 @@ class ProductSerializer(serializers.ModelSerializer):
         attribute_map = get_category_attribute_map(obj.category, 'product')
 
         resolved_values = []
-        for slug, value in (obj.specifications or {}).items():
+        specifications = obj.specifications or {}
+        ordered_slugs = [slug for slug in attribute_map if slug in specifications]
+        ordered_slugs.extend(slug for slug in specifications if slug not in attribute_map)
+        for slug in ordered_slugs:
+            value = specifications[slug]
             attribute = attribute_map.get(slug)
             if attribute is None:
                 resolved_values.append({

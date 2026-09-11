@@ -106,11 +106,16 @@ class ProductAdminForm(forms.ModelForm):
             cleaned_data['specifications'] = self.instance.specifications or {}
             return cleaned_data
 
+        registered_slugs = {attribute.slug for attribute in self.product_attributes}
         cleaned_data['specifications'] = {
+            slug: value for slug, value in (self.instance.specifications or {}).items()
+            if slug not in registered_slugs
+        }
+        cleaned_data['specifications'].update({
             attribute.slug: normalize_attribute_value(cleaned_data.get(f'{SPEC_FIELD_PREFIX}{attribute.slug}'))
             for attribute in self.product_attributes
             if cleaned_data.get(f'{SPEC_FIELD_PREFIX}{attribute.slug}') not in (None, '')
-        }
+        })
         return cleaned_data
 
     def save(self, commit=True):

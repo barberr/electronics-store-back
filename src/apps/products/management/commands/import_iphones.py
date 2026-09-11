@@ -21,6 +21,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from ...models import Brand, Category, Attribute, Product, ProductVariant
+from ...iphone_specifications_v1 import normalize_specifications, register_attributes
 
 
 def display(
@@ -685,6 +686,7 @@ class Command(BaseCommand):
         )
 
         category.attributes.add(storage_attribute, color_attribute)
+        register_attributes(Attribute, category)
 
         products_created = 0
         products_updated = 0
@@ -708,7 +710,7 @@ class Command(BaseCommand):
                         f"{item['name']}: характеристики, цвета, объемы памяти, "
                         "цены и наличие."
                     ),
-                    "specifications": item["specifications"],
+                    "specifications": normalize_specifications(item["specifications"]),
                     "is_active": True,
                 },
             )

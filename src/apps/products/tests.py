@@ -1,8 +1,12 @@
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
+from pathlib import Path
+import tempfile
 
 from .admin import ProductAdminForm, ProductImageAdminForm, ProductVariantAdminForm
 from .models import Attribute, Brand, Category, Product, ProductImage, ProductVariant
@@ -252,6 +256,7 @@ class ProductAdminFormTests(TestCase):
                 'seo_title': '',
                 'seo_description': '',
                 'warranty_months': '12',
+                'popular_order': '0',
                 'is_active': 'on',
                 'is_preorder': '',
                 'is_popular': '',
@@ -567,3 +572,95 @@ class ProductMediaTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['images'][0]['media_type'], 'video')
         self.assertTrue(response.data['images'][0]['image'].endswith('.mp4'))
+
+
+class ProductImportCommandTests(TestCase):
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_import_products_xlsx_creates_products_variants_and_media_without_duplicates(self):
+        try:
+            from openpyxl import Workbook
+        except ImportError:
+            self.skipTest('openpyxl is not installed')
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.append([
+                'Серия', 'Модель_из_файла', 'ОЗУ', 'Диагональ', 'Цвет_вариант', 'Цветы_всего',
+                'Связь', 'Процессор', 'Год', 'Разъём', 'Комплект', 'MagSafe', 'Корпус',
+                'gallery_id', 'Фото_1', 'Фото_2', 'Фото_3',
+            ])
+            worksheet.append([
+                '13', '13', '128GB', '6.1"', '(PRODUCT)RED',
+                '(PRODUCT)RED; Starlight; Midnight; Blue; Pink; Green',
+                '5G, Wi-Fi, Bluetooth', 'A15 Bionic', '2021', 'Lightning',
+                'iPhone, кабель USB-C to Lightning, документация', 'Да',
+                'Алюминий, стеклянная задняя панель', '13',
+                '13_01.webp', '13_02.webp', '13_03.webp',
+            ])
+            worksheet.append([
+                '13', '13', '256GB', '6.1"', 'Starlight',
+                '(PRODUCT)RED; Starlight; Midnight; Blue; Pink; Green',
+                '5G, Wi-Fi, Bluetooth', 'A15 Bionic', '2021', 'Lightning',
+                'iPhone, кабель USB-C to Lightning, документация', 'Да',
+                'Алюминий, стеклянная задняя панель', '13',
+                '13_01.webp', '13_02.webp', '13_03.webp',
+            ])
+
+            xlsx_path = temp_path / 'products.xlsx'
+            workbook.save(xlsx_path)
+
+            for filename in ('13_01.webp', '13_02.webp', '13_03.webp'):
+                (temp_path / filename).write_bytes(b'fake-image-content')
+
+            command_kwargs = {
+                'category_slug': 'smartphones',
+                'category_name': 'Смартфоны',
+                'brand_slug': 'apple',
+                'brand_name': 'Apple',
+                'media_dir': str(temp_path),
+                'product_name_template': '{brand} iPhone {model}',
+                'default_price': '799.00',
+                'default_stock': 7,
+            }
+
+            call_command('import_products_xlsx', str(xlsx_path), **command_kwargs)
+            call_command('import_products_xlsx', str(xlsx_path), **command_kwargs)
+
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertEqual(ProductVariant.objects.count(), 2)
+        self.assertEqual(ProductImage.objects.count(), 3)
+
+        product = Product.objects.get()
+        self.assertEqual(product.name, 'Apple iPhone 13')
+        self.assertEqual(product.specifications['screen-size'], '6.1"')
+        self.assertEqual(product.specifications['processor'], 'A15 Bionic')
+        self.assertEqual(product.specifications['release-year'], '2021')
+        self.assertEqual(product.specifications['magsafe'], 'Да')
+
+        variants = {
+            (variant.attributes.get('storage'), variant.attributes.get('color')): variant
+            for variant in ProductVariant.objects.filter(product=product)
+        }
+        self.assertIn(('128GB', '(PRODUCT)RED'), variants)
+        self.assertIn(('256GB', 'Starlight'), variants)
+        self.assertTrue(all(str(variant.price) == '799.00' for variant in variants.values()))
+        self.assertTrue(all(variant.stock == 7 for variant in variants.values()))
+
+        color_attribute = Attribute.objects.get(slug='color')
+        self.assertEqual(color_attribute.applies_to, 'variant')
+        self.assertEqual(
+            color_attribute.values,
+            ['(PRODUCT)RED', 'Blue', 'Green', 'Midnight', 'Pink', 'Starlight'],
+        )
+
+        storage_attribute = Attribute.objects.get(slug='storage')
+        self.assertEqual(storage_attribute.values, ['128GB', '256GB'])
+
+        category = Category.objects.get(slug='smartphones')
+        self.assertEqual(category.attributes.count(), 10)
+        self.assertEqual(
+            list(product.images.order_by('order').values_list('color_value', flat=True)),
+            ['', '', ''],
+        )

@@ -11,7 +11,7 @@ fi
 
 # Устанавливаем переменные окружения
 export PYTHONPATH="/home/pavel/electronics-store-back/src:$PYTHONPATH"
-export DJANGO_SETTINGS_MODULE="core.settings"
+export DJANGO_SETTINGS_MODULE="core.settings.local"
 
 echo "Starting Django server..."
 echo "PYTHONPATH: $PYTHONPATH"

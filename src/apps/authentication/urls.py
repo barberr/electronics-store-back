@@ -1,40 +1,18 @@
-# src/apps/authentication/urls.py
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
-from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    CustomTokenObtainPairView,
-    RegisterView,
-    VerifyEmailPinView,
-    ResendEmailPinView,
-    LogoutView,
-    UserProfileView,
-    ChangePasswordView,
-    RefreshTokenView,
-    LoginView
+    RegisterView, LoginView, VerifyEmailPinView, ResendEmailPinView, LogoutView,
+    UserProfileView, ChangePasswordView, CustomerTokenRefreshView,
 )
 
-def api_no_csrf(view):
-    """Универсальный csrf_exempt для url patterns"""
-    if hasattr(view, 'as_view'):
-        return csrf_exempt(view.as_view())
-    return csrf_exempt(view)
-
 urlpatterns = [
-    # JWT endpoints
-    path('token/', api_no_csrf(CustomTokenObtainPairView), name='token_obtain_pair'),
-    path('token/refresh/', api_no_csrf(TokenRefreshView), name='token_refresh'),
-    path('token/custom-refresh/', api_no_csrf(RefreshTokenView), name='custom_token_refresh'),
-    
-    # Auth endpoints
-    #path('login/', LoginView.as_view(), name='login'),
-    path('login/', api_no_csrf(LoginView), name='login'),
-    path('register/', api_no_csrf(RegisterView), name='register'),
-    path('verify-email-pin/', api_no_csrf(VerifyEmailPinView), name='verify_email_pin'),
-    path('resend-email-pin/', api_no_csrf(ResendEmailPinView), name='resend_email_pin'),
-    path('logout/', api_no_csrf(LogoutView), name='logout'),
-    
-    # User endpoints
-    path('profile/', api_no_csrf(UserProfileView), name='user_profile'),
-    path('change-password/', api_no_csrf(ChangePasswordView), name='change_password'),
+    path('token/', LoginView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', CustomerTokenRefreshView.as_view(), name='token_refresh'),
+    path('token/custom-refresh/', CustomerTokenRefreshView.as_view(), name='custom_token_refresh'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('register/', RegisterView.as_view(), name='register'),
+    path('verify-email-pin/', VerifyEmailPinView.as_view(), name='verify_email_pin'),
+    path('resend-email-pin/', ResendEmailPinView.as_view(), name='resend_email_pin'),
+    path('logout/', LogoutView.as_view(), name='logout'),
+    path('profile/', UserProfileView.as_view(), name='user_profile'),
+    path('change-password/', ChangePasswordView.as_view(), name='change_password'),
 ]

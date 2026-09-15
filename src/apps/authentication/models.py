@@ -3,7 +3,9 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
-import random
+import secrets
+import uuid
+from django.db.models.functions import Lower
 
 
 class CustomUser(AbstractUser):
@@ -30,8 +32,15 @@ class CustomUser(AbstractUser):
         verbose_name='user permissions',
     )
 
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                Lower('email'), condition=~models.Q(email=''), name='customer_email_ci_unique',
+            ),
+        ]
+
     def set_email_verification_pin(self, ttl_minutes=10):
-        self.email_verification_pin = f"{random.randint(0, 999999):06d}"
+        self.email_verification_pin = f"{secrets.randbelow(1000000):06d}"
         self.email_verification_pin_expires_at = timezone.now() + timedelta(minutes=ttl_minutes)
 
     def clear_email_verification_pin(self):
@@ -48,3 +57,10 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.email or self.username
+
+
+class CustomerSession(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='customer_sessions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked = models.BooleanField(default=False)
